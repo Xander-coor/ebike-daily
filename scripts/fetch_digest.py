@@ -8,7 +8,8 @@ and writes JSON cache to public/data/.
 import os, json, time, sys, requests
 from datetime import datetime, timezone
 from pathlib import Path
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # ── Config ───────────────────────────────────────────────────────────────────
 REDDIT_CLIENT_ID     = os.environ["REDDIT_CLIENT_ID"]
@@ -87,7 +88,7 @@ CATEGORY_MAPPING = {
     "General":  "綜合",
 }
 
-def generate_post_analysis(posts: list[dict], model: genai.GenerativeModel) -> list[dict]:
+def generate_post_analysis(posts: list[dict], client: genai.Client) -> list[dict]:
     """Send posts to Gemini for bilingual analysis."""
     posts_text = "\n".join(
         f"{i+1}. [{p['subreddit']}] {p['title']} (↑{p['upvotes']} 💬{p['comments']})"
@@ -113,9 +114,11 @@ Posts:
 
 Return ONLY a valid JSON array, no markdown, no explanation."""
 
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+    )
     raw = response.text.strip()
-    # Strip markdown code fences if present
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -161,8 +164,7 @@ def main():
 
     print(f"Fetching digest for {date_str}...")
     token = get_reddit_token()
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
     # ── r/ebikes section ──
     print("Fetching r/ebikes...")
@@ -187,8 +189,8 @@ def main():
 
     # ── Gemini analysis ──
     print("Generating analysis with Gemini...")
-    ebike_analyses = generate_post_analysis(ebike_top, model)
-    brand_analyses = generate_post_analysis(brand_top, model)
+    ebike_analyses = generate_post_analysis(ebike_top, client)
+    brand_analyses = generate_post_analysis(brand_top, client)
 
     def merge(raw_posts: list[dict], analyses: list[dict]) -> list[dict]:
         result = []
