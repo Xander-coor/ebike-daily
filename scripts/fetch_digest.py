@@ -45,16 +45,18 @@ def fetch_top_posts(subreddit: str, token: str, limit: int = 50) -> list[dict]:
     children = r.json()["data"]["children"]
     posts = []
     for c in children:
-        d = c["data"]
+        d = c.get("data", {})
+        if not d.get("id"):
+            continue
         posts.append({
-            "id":       d["id"],
-            "title":    d["title"],
-            "subreddit": d["subreddit"],
-            "url":      "https://reddit.com" + d["permalink"],
-            "upvotes":  d["ups"],
-            "comments": d["num_comments"],
-            "awards":   d.get("total_awards_received", 0),
-            "created":  d["created_utc"],
+            "id":        d["id"],
+            "title":     d.get("title", ""),
+            "subreddit": d.get("subreddit", subreddit),
+            "url":       "https://reddit.com" + d.get("permalink", ""),
+            "upvotes":   d.get("ups", 0),
+            "comments":  d.get("num_comments", 0),
+            "awards":    d.get("total_awards_received", 0),
+            "created":   d.get("created_utc", 0),
         })
     return posts
 
