@@ -8,8 +8,6 @@ and writes JSON cache to public/data/.
 import os, json, time, sys, requests
 from datetime import datetime, timezone
 from pathlib import Path
-from google import genai
-from google.genai import types
 
 # ── Config ───────────────────────────────────────────────────────────────────
 REDDIT_CLIENT_ID     = os.environ["REDDIT_CLIENT_ID"]
@@ -88,8 +86,11 @@ CATEGORY_MAPPING = {
     "General":  "綜合",
 }
 
-def generate_post_analysis(posts: list[dict], client: genai.Client) -> list[dict]:
-    """Send posts to Gemini for bilingual analysis."""
+GEMINI_MODEL = "gemini-2.0-flash-lite"
+GEMINI_URL   = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+
+def generate_post_analysis(posts: list[dict]) -> list[dict]:
+    """Send posts to Gemini REST API for bilingual analysis."""
     posts_text = "\n".join(
         f"{i+1}. [{p['subreddit']}] {p['title']} (↑{p['upvotes']} 💬{p['comments']})"
         for i, p in enumerate(posts)
@@ -114,17 +115,19 @@ Posts:
 
 Return ONLY a valid JSON array, no markdown, no explanation."""
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt,
+    resp = requests.post(
+        GEMINI_URL,
+        params={"key": GEMINI_API_KEY},
+        json={"contents": [{"parts": [{"text": prompt}]}]},
+        timeout=60,
     )
-    raw = response.text.strip()
+    resp.raise_for_status()
+    raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
-    analyses = json.loads(raw.strip())
-    return analyses
+    return json.loads(raw.strip())
 
 # ── Cache management ──────────────────────────────────────────────────────────
 def update_index(new_date: str) -> None:
@@ -164,7 +167,6 @@ def main():
 
     print(f"Fetching digest for {date_str}...")
     token = get_reddit_token()
-    client = genai.Client(api_key=GEMINI_API_KEY)
 
     # ── r/ebikes section ──
     print("Fetching r/ebikes...")
@@ -189,8 +191,8 @@ def main():
 
     # ── Gemini analysis ──
     print("Generating analysis with Gemini...")
-    ebike_analyses = generate_post_analysis(ebike_top, client)
-    brand_analyses = generate_post_analysis(brand_top, client)
+    ebike_analyses = generate_post_analysis(ebike_top)
+    brand_analyses = generate_post_analysis(brand_top)
 
     def merge(raw_posts: list[dict], analyses: list[dict]) -> list[dict]:
         result = []
