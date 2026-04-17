@@ -86,7 +86,7 @@ CATEGORY_MAPPING = {
     "General":  "綜合",
 }
 
-GEMINI_MODEL = "gemini-2.0-flash-lite"
+GEMINI_MODEL = "gemma-3-4b-it"
 GEMINI_URL   = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 def generate_post_analysis(posts: list[dict]) -> list[dict]:
