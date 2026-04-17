@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
 Daily E-Bike Digest Fetcher
-Fetches top posts from Reddit, scores them, generates bilingual digest via Claude API,
+Fetches top posts from Reddit, scores them, generates bilingual digest via Gemini API,
 and writes JSON cache to public/data/.
 """
 
 import os, json, time, sys, requests
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
-import anthropic
+import google.generativeai as genai
 
 # ── Config ───────────────────────────────────────────────────────────────────
 REDDIT_CLIENT_ID     = os.environ["REDDIT_CLIENT_ID"]
 REDDIT_CLIENT_SECRET = os.environ["REDDIT_CLIENT_SECRET"]
 REDDIT_USER_AGENT    = "ebike-daily-digest/1.0"
-ANTHROPIC_API_KEY    = os.environ["ANTHROPIC_API_KEY"]
+GEMINI_API_KEY       = os.environ["GEMINI_API_KEY"]
 
 SUBREDDITS_EBIKES  = ["ebikes"]
 SUBREDDITS_BRANDS  = ["Aventon", "RadPowerBikes", "lectric_ebikes", "cowboyebike", "super73"]
@@ -87,8 +87,8 @@ CATEGORY_MAPPING = {
     "General":  "綜合",
 }
 
-def generate_post_analysis(posts: list[dict], client: anthropic.Anthropic) -> list[dict]:
-    """Send posts to Claude for bilingual analysis."""
+def generate_post_analysis(posts: list[dict], model: genai.GenerativeModel) -> list[dict]:
+    """Send posts to Gemini for bilingual analysis."""
     posts_text = "\n".join(
         f"{i+1}. [{p['subreddit']}] {p['title']} (↑{p['upvotes']} 💬{p['comments']})"
         for i, p in enumerate(posts)
@@ -113,14 +113,14 @@ Posts:
 
 Return ONLY a valid JSON array, no markdown, no explanation."""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = message.content[0].text.strip()
-    analyses = json.loads(raw)
+    response = model.generate_content(prompt)
+    raw = response.text.strip()
+    # Strip markdown code fences if present
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    analyses = json.loads(raw.strip())
     return analyses
 
 # ── Cache management ──────────────────────────────────────────────────────────
@@ -161,7 +161,8 @@ def main():
 
     print(f"Fetching digest for {date_str}...")
     token = get_reddit_token()
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
     # ── r/ebikes section ──
     print("Fetching r/ebikes...")
@@ -184,10 +185,10 @@ def main():
             print(f"  Warning: failed to fetch r/{sub}: {e}")
     brand_top = top_n(brand_posts_raw, TOP_N, now_utc.timestamp())
 
-    # ── Claude analysis ──
-    print("Generating analysis with Claude...")
-    ebike_analyses = generate_post_analysis(ebike_top, client)
-    brand_analyses = generate_post_analysis(brand_top, client)
+    # ── Gemini analysis ──
+    print("Generating analysis with Gemini...")
+    ebike_analyses = generate_post_analysis(ebike_top, model)
+    brand_analyses = generate_post_analysis(brand_top, model)
 
     def merge(raw_posts: list[dict], analyses: list[dict]) -> list[dict]:
         result = []
