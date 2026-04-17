@@ -162,7 +162,7 @@ def main():
     print(f"Fetching digest for {date_str}...")
     token = get_reddit_token()
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.0-flash")
 
     # ── r/ebikes section ──
     print("Fetching r/ebikes...")
