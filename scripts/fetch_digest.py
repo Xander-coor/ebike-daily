@@ -96,24 +96,29 @@ def generate_post_analysis(posts: list[dict]) -> list[dict]:
         for i, p in enumerate(posts)
     )
 
-    prompt = f"""You are analyzing Reddit posts about lifestyle e-bikes (commuter, urban, folding, cargo).
+    prompt = f"""You are analyzing Reddit posts about lifestyle e-bikes for a Taiwanese audience.
 
-For each post below, provide a JSON array where each item has:
+CRITICAL RULES:
+1. ALL Chinese text MUST be in Traditional Chinese (繁體中文) as used in Taiwan. Never use Simplified Chinese.
+2. title_zh MUST be a proper Traditional Chinese translation of the English title — never copy the English.
+3. Use natural Taiwanese Mandarin expressions (e.g. 單車 not 自行车, 腳踏車 not 脚踏车).
+
+For each post below, return a JSON array where each item has:
 - rank (int, 1-based)
-- title_zh (Chinese translation of title)
+- title_zh (Traditional Chinese translation of the English title — MUST be in Chinese characters)
 - category (one of: Commuter, Urban, Folding, Cargo, General)
-- category_zh (Chinese: 通勤型/城市休閒型/折疊車/貨運車/綜合)
+- category_zh (Traditional Chinese: 通勤型/城市休閒型/折疊車/貨運車/綜合)
 - summary (English, 2 sentences max)
-- summary_zh (Chinese translation)
-- why_trending (English, 1-2 sentences explaining why this is popular today)
-- why_trending_zh (Chinese translation)
+- summary_zh (Traditional Chinese translation, natural Taiwanese Mandarin)
+- why_trending (English, 1-2 sentences on why this is popular today)
+- why_trending_zh (Traditional Chinese translation, natural Taiwanese Mandarin)
 - sentiment (English, 1 sentence on community reaction)
-- sentiment_zh (Chinese translation)
+- sentiment_zh (Traditional Chinese translation, natural Taiwanese Mandarin)
 
 Posts:
 {posts_text}
 
-Return ONLY a valid JSON array, no markdown, no explanation."""
+Return ONLY a valid JSON array. No markdown, no code fences, no explanation."""
 
     resp = requests.post(
         GEMINI_URL,
